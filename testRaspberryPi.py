@@ -6,7 +6,10 @@ import time
 
 ################### setting ###################
 BLYNK_AUTH = ''
-RaspberryPiIPAdress = ''
+RaspberryPi0IPAdress = ''
+RaspberryPi1IPAdress = ''
+portnumber0 = ''
+portnumber1 = ''
 gpio_pin = 12
 initialdegree = 20
 opendegree = 20
@@ -40,6 +43,18 @@ class Threadblynk(threading.Thread):
         while True:
             blynk.run()
 
+class ThreadSendState(threading.Thread):
+    def __init__(self):
+        super(ThreadSendState, self).__init__()
+
+    def run(self):
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.bind((RaspberryPi0IPAdress, portnumber0))
+            while True:
+                data, addr = s.recvfrom(1024)
+                if data == b'ChangeState':
+                    state.changestate()
+
 
 class State():
     def drivethethumbturn(self):
@@ -57,7 +72,7 @@ class State():
 
 class Open(State):
     def drivethethumbturn(self):
-        pi.hardware_PWM(gpio_pin, 50, angle2duty(closedegree))
+        thumbturn.turn(closedegree)
 
     def displaythestate(self):
         blynk.virtual_write(2, "Open")
@@ -65,19 +80,25 @@ class Open(State):
     def sleeping(self):
         time.sleep(1)
 
+    def sendstate(self):
+        client.sendto(b'ChangeState', (RaspberryPi1IPAdress, portnumber1))
+
     def changestate(self):
         state.change_state("Close")
 
 
 class Close(State):
     def drivethethumbturn(self):
-        pi.hardware_PWM(gpio_pin, 50, angle2duty(opendegree))
+        thumbturn.turn(opendegree)
 
     def displaythestate(self):
         blynk.virtual_write(2, "Close")
 
     def sleeping(self):
         time.sleep(1)
+
+    def sendstate(self):
+        client.sendto(b'ChangeState', (RaspberryPi1IPAdress, portnumber1))
 
     def changestate(self):
         state.change_state("Open")
@@ -107,35 +128,33 @@ class Context:
     def sleeping(self):
         self.state.sleeping()
 
+    def sendstate(self):
+        self.state.sendstate()
+
     def changestate(self):
         self.state.changestate()
+
+class Thumbturn():
+    def __init__(self, initialdegree):
+        self.degree = initialdegree
+
+    def turn(self, degree=0):
+        self.degree = += degree
+        pi.hardware_PWM(gpio_pin, 50, angle2duty(self.degree))
 
 
 if __name__ == '__main__':
 
     # initialization
-    pi.hardware_PWM(gpio_pin, 50, angle2duty(initialdegree))
-
+    cliemt = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    thumbturn = Thumbturn(initialdegree)
     state = Context()
+    thumbturn.turn()
+
+    thsendstate = ThreadSendState()
+    thsendstate.start()
 
     # start blynk
     thblynk = Threadblynk()
     thblynk.start()
 
-    # start communication
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind((''+RaspberryPiIPAdress+'', 50002))
-        s.listen(1)
-        while True:
-            conn, addr = s.accept()
-            with conn:
-                while True:
-                    data = b''
-                    data = conn.recv(1024)
-                    if data == b'Me':
-                        state.drivethethumbturn()
-                        state.changestate()
-                        state.displaythestate()
-                        state.sleeping()
-                    else:
-                        pass
