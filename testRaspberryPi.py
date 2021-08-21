@@ -6,14 +6,14 @@ import time
 
 ################### setting ###################
 BLYNK_AUTH = ''
-RaspberryPi0IPAdress = ''
-RaspberryPi1IPAdress = ''
+RaspberryPi0IPAddress = ''
+RaspberryPi1IPAddress = ''
 portnumber0 = ''
 portnumber1 = ''
 gpio_pin = 12
-initialdegree = 20
-opendegree = 20
-closedegree = 100
+initialdegree = 0
+opendegree = -80
+closedegree = 80
 ###############################################
 
 # initialize
@@ -49,7 +49,7 @@ class ThreadSendState(threading.Thread):
 
     def run(self):
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-            s.bind((RaspberryPi0IPAdress, portnumber0))
+            s.bind((RaspberryPi0IPAddress, portnumber0))
             while True:
                 data, addr = s.recvfrom(1024)
                 if data == b'ChangeState':
@@ -66,6 +66,9 @@ class State():
     def sleeping(self):
         raise NotImplementedError("sleeping is abstractmethod")
 
+    def sendstate(self):
+        raise NotImplementedError("sendstate is abstractmethod")
+
     def changestate(self):
         raise NotImplementedError("changestate is abstractmethod")
 
@@ -81,7 +84,7 @@ class Open(State):
         time.sleep(1)
 
     def sendstate(self):
-        client.sendto(b'ChangeState', (RaspberryPi1IPAdress, portnumber1))
+        client.sendto(b'ChangeState', (RaspberryPi1IPAddress, portnumber1))
 
     def changestate(self):
         state.change_state("Close")
@@ -98,7 +101,7 @@ class Close(State):
         time.sleep(1)
 
     def sendstate(self):
-        client.sendto(b'ChangeState', (RaspberryPi1IPAdress, portnumber1))
+        client.sendto(b'ChangeState', (RaspberryPi1IPAddress, portnumber1))
 
     def changestate(self):
         state.change_state("Open")
@@ -139,14 +142,14 @@ class Thumbturn():
         self.degree = initialdegree
 
     def turn(self, degree=0):
-        self.degree = += degree
+        self.degree += degree
         pi.hardware_PWM(gpio_pin, 50, angle2duty(self.degree))
 
 
 if __name__ == '__main__':
 
     # initialization
-    cliemt = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     thumbturn = Thumbturn(initialdegree)
     state = Context()
     thumbturn.turn()
